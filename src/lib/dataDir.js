@@ -5,6 +5,7 @@ const APP_NAME = "9router";
 
 export function getDataDir() {
   if (process.env.DATA_DIR) return process.env.DATA_DIR;
+  if (process.env.VERCEL) return path.join("/tmp", `.${APP_NAME}`);
   if (process.platform === "win32") {
     return path.join(process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming"), APP_NAME);
   }

@@ -23,6 +23,7 @@ const appPort = parseInt(process.env.UPDATER_APP_PORT || "20128", 10);
 // Data directory (match mitm/paths.js logic)
 function getDataDir() {
   if (process.env.DATA_DIR) return process.env.DATA_DIR;
+  if (process.env.VERCEL) return path.join("/tmp", ".9router");
   if (process.platform === "win32") {
     return path.join(process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming"), "9router");
   }
