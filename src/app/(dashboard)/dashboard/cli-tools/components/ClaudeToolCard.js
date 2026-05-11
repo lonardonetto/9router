@@ -9,6 +9,23 @@ import { matchKnownEndpoint } from "./cliEndpointMatch";
 
 const CLOUD_URL = process.env.NEXT_PUBLIC_CLOUD_URL;
 
+const CLAUDE_MODEL_FALLBACKS = {
+  opus: [
+    { provider: "antigravity", model: "ag/claude-opus-4-6-thinking" },
+    { provider: "antigravity", model: "ag/claude-sonnet-4-6" },
+    { provider: "kiro", model: "kr/claude-sonnet-4.5" },
+  ],
+  sonnet: [
+    { provider: "antigravity", model: "ag/claude-sonnet-4-6" },
+    { provider: "kiro", model: "kr/claude-sonnet-4.5" },
+    { provider: "kiro", model: "kr/claude-sonnet-4" },
+  ],
+  haiku: [
+    { provider: "kiro", model: "kr/claude-haiku-4.5" },
+    { provider: "antigravity", model: "ag/claude-sonnet-4-6" },
+  ],
+};
+
 export default function ClaudeToolCard({
   tool,
   isExpanded,
@@ -50,6 +67,15 @@ export default function ClaudeToolCard({
   };
 
   const configStatus = getConfigStatus();
+
+  const getDefaultClaudeModel = (alias) => {
+    const activeProviderIds = new Set((activeProviders || []).map((provider) => provider.provider));
+    const fallback = CLAUDE_MODEL_FALLBACKS[alias]?.find((candidate) => activeProviderIds.has(candidate.provider));
+    const configuredDefault = tool.defaultModels.find((model) => model.alias === alias)?.defaultValue || "";
+    return fallback?.model || configuredDefault;
+  };
+
+  const getEffectiveClaudeModel = (alias) => modelMappings[alias] || getDefaultClaudeModel(alias);
 
   useEffect(() => {
     if (apiKeys?.length > 0 && !selectedApiKey) {
@@ -155,8 +181,11 @@ export default function ClaudeToolCard({
         env.ANTHROPIC_AUTH_TOKEN = keyToUse;
       }
 
+      const defaultRuntimeModel = getEffectiveClaudeModel("sonnet");
+      if (defaultRuntimeModel) env.ANTHROPIC_MODEL = defaultRuntimeModel;
+
       tool.defaultModels.forEach((model) => {
-        const targetModel = modelMappings[model.alias];
+        const targetModel = getEffectiveClaudeModel(model.alias);
         if (targetModel && model.envKey) env[model.envKey] = targetModel;
       });
       const res = await fetch("/api/cli-tools/claude-settings", {
@@ -212,9 +241,14 @@ export default function ClaudeToolCard({
     const keyToUse = (selectedApiKey && selectedApiKey.trim())
       ? selectedApiKey
       : (!cloudEnabled ? "sk_9router" : "<API_KEY_FROM_DASHBOARD>");
-    const env = { ANTHROPIC_BASE_URL: getEffectiveBaseUrl(), ANTHROPIC_AUTH_TOKEN: keyToUse };
+    const env = {
+      ANTHROPIC_BASE_URL: getEffectiveBaseUrl(),
+      ANTHROPIC_AUTH_TOKEN: keyToUse,
+    };
+    const defaultRuntimeModel = getEffectiveClaudeModel("sonnet");
+    if (defaultRuntimeModel) env.ANTHROPIC_MODEL = defaultRuntimeModel;
     tool.defaultModels.forEach((model) => {
-      const targetModel = modelMappings[model.alias];
+      const targetModel = getEffectiveClaudeModel(model.alias);
       if (targetModel && model.envKey) env[model.envKey] = targetModel;
     });
 
@@ -262,8 +296,36 @@ export default function ClaudeToolCard({
                   <span className="material-symbols-outlined text-yellow-500">warning</span>
                   <div className="flex-1">
                     <p className="font-medium text-yellow-600 dark:text-yellow-400">Claude CLI not detected locally</p>
-                    <p className="text-sm text-text-muted">Manual configuration is still available if 9router is deployed on a remote server.</p>
+                    <p className="text-sm text-text-muted">Choose the endpoint/models below and copy the manual configuration to your local machine.</p>
                   </div>
+                </div>
+                <div className="grid grid-cols-1 gap-2 pl-0 sm:pl-9">
+                  <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[7rem_1fr_auto] sm:items-center">
+                    <span className="text-xs font-semibold text-text-main">Endpoint</span>
+                    <BaseUrlSelect
+                      value={customBaseUrl || getDisplayUrl()}
+                      onChange={setCustomBaseUrl}
+                      requiresExternalUrl={tool.requiresExternalUrl}
+                      tunnelEnabled={tunnelEnabled}
+                      tunnelPublicUrl={tunnelPublicUrl}
+                      tailscaleEnabled={tailscaleEnabled}
+                      tailscaleUrl={tailscaleUrl}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[7rem_1fr_auto] sm:items-center">
+                    <span className="text-xs font-semibold text-text-main">API Key</span>
+                    <ApiKeySelect value={selectedApiKey} onChange={setSelectedApiKey} apiKeys={apiKeys} cloudEnabled={cloudEnabled} />
+                  </div>
+                  {tool.defaultModels.map((model) => (
+                    <div key={model.alias} className="grid grid-cols-1 gap-1.5 sm:grid-cols-[7rem_1fr_auto] sm:items-center">
+                      <span className="text-xs font-semibold text-text-main">{model.name}</span>
+                      <div className="relative w-full min-w-0">
+                        <input type="text" value={getEffectiveClaudeModel(model.alias)} onChange={(e) => onModelMappingChange(model.alias, e.target.value)} placeholder={model.defaultValue} className="w-full min-w-0 pl-2 pr-7 py-2 bg-surface rounded border border-border text-xs focus:outline-none focus:ring-1 focus:ring-primary/50 sm:py-1.5" />
+                        {modelMappings[model.alias] && <button onClick={() => onModelMappingChange(model.alias, "")} className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 text-text-muted hover:text-red-500 rounded transition-colors" title="Clear"><span className="material-symbols-outlined text-[14px]">close</span></button>}
+                      </div>
+                      <button onClick={() => openModelSelector(model.alias)} disabled={!hasActiveProviders} className={`w-full rounded border px-2 py-2 text-xs transition-colors sm:w-auto sm:py-1.5 ${hasActiveProviders ? "bg-surface border-border text-text-main hover:border-primary cursor-pointer" : "opacity-50 cursor-not-allowed border-border"}`}>Select</button>
+                    </div>
+                  ))}
                 </div>
                 <div className="flex items-center gap-2 pl-9">
                   <Button variant="secondary" size="sm" onClick={() => setShowManualConfigModal(true)} className="!bg-yellow-500/20 !border-yellow-500/40 !text-yellow-700 dark:!text-yellow-300 hover:!bg-yellow-500/30">

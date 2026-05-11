@@ -7,6 +7,15 @@ import BaseUrlSelect from "./BaseUrlSelect";
 import ApiKeySelect from "./ApiKeySelect";
 import { matchKnownEndpoint } from "./cliEndpointMatch";
 
+const CODEX_MODEL_FALLBACKS = [
+  "cx/gpt-5.3-codex",
+  "cx/gpt-5.3-codex-high",
+  "cx/gpt-5.3-codex-low",
+  "cx/gpt-5.2-codex",
+  "cx/gpt-5.1-codex",
+  "cx/gpt-5-codex",
+];
+
 export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, apiKeys, activeProviders, cloudEnabled, initialStatus, tunnelEnabled, tunnelPublicUrl, tailscaleEnabled, tailscaleUrl }) {
   const [codexStatus, setCodexStatus] = useState(initialStatus || null);
   const [checkingCodex, setCheckingCodex] = useState(false);
@@ -28,6 +37,18 @@ export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, api
       setSelectedApiKey(apiKeys[0].key);
     }
   }, [apiKeys, selectedApiKey]);
+
+  const getDefaultCodexModel = () => {
+    const hasCodex = activeProviders?.some((provider) => provider.provider === "codex");
+    if (hasCodex) return CODEX_MODEL_FALLBACKS[0];
+    return "";
+  };
+
+  useEffect(() => {
+    const defaultModel = getDefaultCodexModel();
+    if (defaultModel && !selectedModel) setSelectedModel(defaultModel);
+    if (defaultModel && !subagentModel) setSubagentModel(defaultModel);
+  }, [activeProviders, selectedModel, subagentModel]);
 
   useEffect(() => {
     if (initialStatus) setCodexStatus(initialStatus);
@@ -162,10 +183,11 @@ export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, api
       ? selectedApiKey
       : (!cloudEnabled ? "sk_9router" : "<API_KEY_FROM_DASHBOARD>");
 
-    const effectiveSubagentModel = subagentModel || selectedModel;
+    const effectiveModel = selectedModel || getDefaultCodexModel() || "cx/gpt-5.3-codex";
+    const effectiveSubagentModel = subagentModel || effectiveModel;
 
     const configContent = `# 9Router Configuration for Codex CLI
-model = "${selectedModel}"
+model = "${effectiveModel}"
 model_provider = "9router"
 
 [model_providers.9router]
@@ -230,7 +252,33 @@ model = "${effectiveSubagentModel}"
                   <span className="material-symbols-outlined text-yellow-500">warning</span>
                   <div className="flex-1">
                     <p className="font-medium text-yellow-600 dark:text-yellow-400">Codex CLI not detected locally</p>
-                    <p className="text-sm text-text-muted">Manual configuration is still available if 9router is deployed on a remote server.</p>
+                    <p className="text-sm text-text-muted">Choose the endpoint/model below and copy the manual configuration to your local machine.</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 gap-2 pl-0 sm:pl-9">
+                  <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[7rem_1fr_auto] sm:items-center">
+                    <span className="text-xs font-semibold text-text-main">Endpoint</span>
+                    <BaseUrlSelect
+                      value={customBaseUrl || getDisplayUrl()}
+                      onChange={setCustomBaseUrl}
+                      requiresExternalUrl={tool.requiresExternalUrl}
+                      tunnelEnabled={tunnelEnabled}
+                      tunnelPublicUrl={tunnelPublicUrl}
+                      tailscaleEnabled={tailscaleEnabled}
+                      tailscaleUrl={tailscaleUrl}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[7rem_1fr_auto] sm:items-center">
+                    <span className="text-xs font-semibold text-text-main">API Key</span>
+                    <ApiKeySelect value={selectedApiKey} onChange={setSelectedApiKey} apiKeys={apiKeys} cloudEnabled={cloudEnabled} />
+                  </div>
+                  <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[7rem_1fr_auto] sm:items-center">
+                    <span className="text-xs font-semibold text-text-main">Model</span>
+                    <div className="relative w-full min-w-0">
+                      <input type="text" value={selectedModel} onChange={(e) => setSelectedModel(e.target.value)} placeholder="cx/gpt-5.3-codex" className="w-full min-w-0 pl-2 pr-7 py-2 bg-surface rounded border border-border text-xs focus:outline-none focus:ring-1 focus:ring-primary/50 sm:py-1.5" />
+                      {selectedModel && <button onClick={() => setSelectedModel("")} className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 text-text-muted hover:text-red-500 rounded transition-colors" title="Clear"><span className="material-symbols-outlined text-[14px]">close</span></button>}
+                    </div>
+                    <button onClick={() => setModalOpen(true)} disabled={!activeProviders?.length} className={`w-full rounded border px-2 py-2 text-xs transition-colors sm:w-auto sm:py-1.5 ${activeProviders?.length ? "bg-surface border-border text-text-main hover:border-primary cursor-pointer" : "opacity-50 cursor-not-allowed border-border"}`}>Select</button>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 pl-9">
