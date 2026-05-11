@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { getSettings } from "@/lib/localDb";
 import { getConsistentMachineId } from "@/shared/utils/machineId";
 
 const SECRET = new TextEncoder().encode(
@@ -49,7 +48,9 @@ async function hasValidToken(request) {
 
 // Read settings directly from DB to avoid self-fetch deadlock in proxy
 async function loadSettings() {
+  if (process.env.VERCEL) return null;
   try {
+    const { getSettings } = await import("@/lib/localDb");
     return await getSettings();
   } catch {
     return null;
