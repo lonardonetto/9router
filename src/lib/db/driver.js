@@ -3,10 +3,8 @@ import { ensureDirs, DATA_FILE } from "./paths.js";
 // Use global to survive Next.js dev hot-reload (module state resets on reload)
 if (!global._dbAdapter) global._dbAdapter = { instance: null, initPromise: null, logged: false };
 const state = global._dbAdapter;
-const isProductionBuild = process.env.NEXT_PHASE === "phase-production-build";
 
 async function tryUpstashSqlite() {
-  if (isProductionBuild) return null;
   try {
     const { createUpstashSqliteAdapter, hasUpstashRedisConfig } = await import("./adapters/upstashSqliteAdapter.js");
     if (!hasUpstashRedisConfig()) return null;
@@ -18,7 +16,6 @@ async function tryUpstashSqlite() {
 }
 
 async function trySupabaseSqlite() {
-  if (isProductionBuild) return null;
   try {
     const { createSupabaseSqliteAdapter, hasSupabaseConfig } = await import("./adapters/supabaseSqliteAdapter.js");
     if (!hasSupabaseConfig()) return null;
@@ -81,7 +78,7 @@ async function initAdapter() {
   ensureDirs();
   let adapter = await trySupabaseSqlite();
   if (!adapter) adapter = await tryUpstashSqlite();
-  if (process.env.VERCEL && !adapter && !isProductionBuild) {
+  if (process.env.VERCEL && !adapter) {
     console.warn(
       "[DB] Running on Vercel without persistent storage. /tmp is ephemeral; set Supabase or Upstash env vars to persist connections."
     );
