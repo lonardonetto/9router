@@ -17,6 +17,18 @@ async function tryUpstashSqlite() {
   }
 }
 
+async function trySupabaseSqlite() {
+  if (isProductionBuild) return null;
+  try {
+    const { createSupabaseSqliteAdapter, hasSupabaseConfig } = await import("./adapters/supabaseSqliteAdapter.js");
+    if (!hasSupabaseConfig()) return null;
+    return await createSupabaseSqliteAdapter();
+  } catch (e) {
+    console.warn(`[DB] supabase-sql.js unavailable: ${e.message}`);
+    return null;
+  }
+}
+
 async function tryBunSqlite() {
   // Bun runtime only — built-in, no install needed
   if (!process.versions.bun) return null;
@@ -67,10 +79,11 @@ async function trySqlJs() {
 
 async function initAdapter() {
   ensureDirs();
-  let adapter = await tryUpstashSqlite();
+  let adapter = await trySupabaseSqlite();
+  if (!adapter) adapter = await tryUpstashSqlite();
   if (process.env.VERCEL && !adapter && !isProductionBuild) {
     console.warn(
-      "[DB] Running on Vercel without persistent Redis storage. /tmp is ephemeral; set KV_REST_API_URL and KV_REST_API_TOKEN to persist connections."
+      "[DB] Running on Vercel without persistent storage. /tmp is ephemeral; set Supabase or Upstash env vars to persist connections."
     );
   }
   // Order per runtime:

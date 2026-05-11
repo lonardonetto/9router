@@ -1100,6 +1100,10 @@ docker stop 9router && docker rm 9router
 | `CLOUD_URL` | `https://9router.com` | Server-side cloud sync endpoint base URL |
 | `NEXT_PUBLIC_BASE_URL` | `http://localhost:3000` | Backward-compatible/public base URL (prefer `BASE_URL` for server runtime) |
 | `NEXT_PUBLIC_CLOUD_URL` | `https://9router.com` | Backward-compatible/public cloud URL (prefer `CLOUD_URL` for server runtime) |
+| `SUPABASE_URL` | empty | Supabase project URL for persistent SQLite storage on Vercel/serverless |
+| `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_SECRET_KEY` | empty | Supabase server-side key for persistent SQLite storage |
+| `NINE_ROUTER_SUPABASE_TABLE` | `nine_router_storage` | Supabase table used for persisted SQLite storage |
+| `NINE_ROUTER_DB_SUPABASE_KEY` | `9router:sqlite` | Storage key for the persisted SQLite database in Supabase |
 | `KV_REST_API_URL` / `UPSTASH_REDIS_REST_URL` | empty | Upstash Redis REST URL for persistent SQLite storage on Vercel/serverless |
 | `KV_REST_API_TOKEN` / `UPSTASH_REDIS_REST_TOKEN` | empty | Upstash Redis REST token for persistent SQLite storage on Vercel/serverless |
 | `NINE_ROUTER_DB_REDIS_KEY` | `9router:sqlite` | Optional Redis key for the persisted SQLite database |
@@ -1114,12 +1118,26 @@ Notes:
 - Lowercase proxy variables are also supported: `http_proxy`, `https_proxy`, `all_proxy`, `no_proxy`.
 - `.env` is not baked into Docker image (`.dockerignore`); inject runtime config with `--env-file` or `-e`.
 - On Windows, `APPDATA` can be used for local storage path resolution.
-- On Vercel/serverless, local disk is temporary. Configure Upstash/Vercel KV REST variables above; otherwise provider connections can disappear between function invocations.
+- On Vercel/serverless, local disk is temporary. Configure Supabase or Upstash/Vercel KV REST variables above; otherwise provider connections can disappear between function invocations.
 - `INSTANCE_NAME` appears in older docs/env templates, but is currently not used at runtime.
+
+Supabase setup for Vercel/serverless:
+
+```sql
+create table if not exists public.nine_router_storage (
+  key text primary key,
+  value text not null,
+  version bigint not null default 0,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.nine_router_storage disable row level security;
+```
 
 ### Runtime Files and Storage
 
 - Main app state: `${DATA_DIR}/db/data.sqlite` (providers, combos, aliases, keys, settings), managed by `src/lib/db`.
+- On Vercel/serverless with Supabase configured, the SQLite database is stored in `NINE_ROUTER_SUPABASE_TABLE` under `NINE_ROUTER_DB_SUPABASE_KEY`.
 - On Vercel/serverless with Redis REST configured, the SQLite database is stored under `NINE_ROUTER_DB_REDIS_KEY`.
 - Optional request/translator logs: `<repo>/logs/...` when `ENABLE_REQUEST_LOGS=true`.
 - Both `${DATA_DIR}` and `~/.9router` resolve to the same location in a Docker container — the symlink `/root/.9router -> /app/data` is created at build time.
