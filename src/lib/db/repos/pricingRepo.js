@@ -73,6 +73,7 @@ export async function updatePricing(pricingData) {
       );
     }
   });
+  await db.flush?.();
   invalidate();
   return await getUserPricing();
 }
@@ -97,6 +98,7 @@ export async function resetPricing(provider, model) {
       );
     }
   });
+  await db.flush?.();
   invalidate();
   return await getUserPricing();
 }

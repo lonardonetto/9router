@@ -1092,7 +1092,7 @@ docker stop 9router && docker rm 9router
 |----------|---------|-------------|
 | `JWT_SECRET` | `9router-default-secret-change-me` | JWT signing secret for dashboard auth cookie (**change in production**) |
 | `INITIAL_PASSWORD` | `123456` | First login password when no saved hash exists |
-| `DATA_DIR` | `~/.9router` | Main app database location (`db.json`) |
+| `DATA_DIR` | `~/.9router` | Main app data directory (`db/data.sqlite` and related runtime files) |
 | `PORT` | framework default | Service port (`20128` in examples) |
 | `HOSTNAME` | framework default | Bind host (Docker defaults to `0.0.0.0`) |
 | `NODE_ENV` | runtime default | Set `production` for deploy |
@@ -1100,6 +1100,9 @@ docker stop 9router && docker rm 9router
 | `CLOUD_URL` | `https://9router.com` | Server-side cloud sync endpoint base URL |
 | `NEXT_PUBLIC_BASE_URL` | `http://localhost:3000` | Backward-compatible/public base URL (prefer `BASE_URL` for server runtime) |
 | `NEXT_PUBLIC_CLOUD_URL` | `https://9router.com` | Backward-compatible/public cloud URL (prefer `CLOUD_URL` for server runtime) |
+| `KV_REST_API_URL` / `UPSTASH_REDIS_REST_URL` | empty | Upstash Redis REST URL for persistent SQLite storage on Vercel/serverless |
+| `KV_REST_API_TOKEN` / `UPSTASH_REDIS_REST_TOKEN` | empty | Upstash Redis REST token for persistent SQLite storage on Vercel/serverless |
+| `NINE_ROUTER_DB_REDIS_KEY` | `9router:sqlite` | Optional Redis key for the persisted SQLite database |
 | `API_KEY_SECRET` | `endpoint-proxy-api-key-secret` | HMAC secret for generated API keys |
 | `MACHINE_ID_SALT` | `endpoint-proxy-salt` | Salt for stable machine ID hashing |
 | `ENABLE_REQUEST_LOGS` | `false` | Enables request/response logs under `logs/` |
@@ -1111,12 +1114,13 @@ Notes:
 - Lowercase proxy variables are also supported: `http_proxy`, `https_proxy`, `all_proxy`, `no_proxy`.
 - `.env` is not baked into Docker image (`.dockerignore`); inject runtime config with `--env-file` or `-e`.
 - On Windows, `APPDATA` can be used for local storage path resolution.
+- On Vercel/serverless, local disk is temporary. Configure Upstash/Vercel KV REST variables above; otherwise provider connections can disappear between function invocations.
 - `INSTANCE_NAME` appears in older docs/env templates, but is currently not used at runtime.
 
 ### Runtime Files and Storage
 
-- Main app state: `${DATA_DIR}/db.json` (providers, combos, aliases, keys, settings), managed by `src/lib/localDb.js`.
-- Usage history and logs: `${DATA_DIR}/usage.json` and `${DATA_DIR}/log.txt`, managed by `src/lib/usageDb.js`.
+- Main app state: `${DATA_DIR}/db/data.sqlite` (providers, combos, aliases, keys, settings), managed by `src/lib/db`.
+- On Vercel/serverless with Redis REST configured, the SQLite database is stored under `NINE_ROUTER_DB_REDIS_KEY`.
 - Optional request/translator logs: `<repo>/logs/...` when `ENABLE_REQUEST_LOGS=true`.
 - Both `${DATA_DIR}` and `~/.9router` resolve to the same location in a Docker container — the symlink `/root/.9router -> /app/data` is created at build time.
 

@@ -66,6 +66,7 @@ export async function createProviderNode(data) {
     updatedAt: now,
   };
   upsert(db, node);
+  await db.flush?.();
   return node;
 }
 
@@ -79,6 +80,7 @@ export async function updateProviderNode(id, data) {
     upsert(db, merged);
     result = merged;
   });
+  await db.flush?.();
   return result;
 }
 
@@ -91,5 +93,6 @@ export async function deleteProviderNode(id) {
     removed = rowToNode(row);
     db.run(`DELETE FROM providerNodes WHERE id = ?`, [id]);
   });
+  await db.flush?.();
   return removed;
 }

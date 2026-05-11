@@ -114,6 +114,7 @@ async function flushToDatabase() {
           );
         }
       });
+      await db.flush?.();
     }
   } catch (e) {
     console.error("[requestDetailsRepo] Batch write failed:", e);

@@ -42,6 +42,7 @@ export async function createApiKey(name, machineId) {
     `INSERT INTO apiKeys(id, key, name, machineId, isActive, createdAt) VALUES(?, ?, ?, ?, ?, ?)`,
     [apiKey.id, apiKey.key, apiKey.name, apiKey.machineId, 1, apiKey.createdAt]
   );
+  await db.flush?.();
   return apiKey;
 }
 
@@ -58,12 +59,14 @@ export async function updateApiKey(id, data) {
     );
     result = merged;
   });
+  await db.flush?.();
   return result;
 }
 
 export async function deleteApiKey(id) {
   const db = await getAdapter();
   const res = db.run(`DELETE FROM apiKeys WHERE id = ?`, [id]);
+  await db.flush?.();
   return (res?.changes ?? 0) > 0;
 }
 

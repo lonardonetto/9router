@@ -30,6 +30,7 @@ export async function disableModels(providerAlias, ids) {
       [SCOPE, providerAlias, stringifyJson(merged)]
     );
   });
+  await db.flush?.();
 }
 
 export async function enableModels(providerAlias, ids) {
@@ -53,4 +54,5 @@ export async function enableModels(providerAlias, ids) {
       );
     }
   });
+  await db.flush?.();
 }

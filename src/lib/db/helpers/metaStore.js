@@ -9,6 +9,7 @@ export async function getMeta(key, fallback = null) {
 export async function setMeta(key, value) {
   const db = await getAdapter();
   db.run(`INSERT INTO _meta(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`, [key, String(value)]);
+  await db.flush?.();
 }
 
 // Sync versions for use during migration (adapter passed directly)

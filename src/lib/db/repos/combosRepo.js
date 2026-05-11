@@ -47,6 +47,7 @@ export async function createCombo(data) {
     `INSERT INTO combos(id, name, kind, models, createdAt, updatedAt) VALUES(?, ?, ?, ?, ?, ?)`,
     [combo.id, combo.name, combo.kind, stringifyJson(combo.models), combo.createdAt, combo.updatedAt]
   );
+  await db.flush?.();
   return combo;
 }
 
@@ -63,11 +64,13 @@ export async function updateCombo(id, data) {
     );
     result = merged;
   });
+  await db.flush?.();
   return result;
 }
 
 export async function deleteCombo(id) {
   const db = await getAdapter();
   const res = db.run(`DELETE FROM combos WHERE id = ?`, [id]);
+  await db.flush?.();
   return (res?.changes ?? 0) > 0;
 }

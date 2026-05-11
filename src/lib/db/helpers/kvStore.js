@@ -18,6 +18,7 @@ export function makeKv(scope) {
     async set(key, value) {
       const db = await getAdapter();
       db.run(`INSERT INTO kv(scope, key, value) VALUES(?, ?, ?) ON CONFLICT(scope, key) DO UPDATE SET value = excluded.value`, [scope, key, stringifyJson(value)]);
+      await db.flush?.();
     },
     async setMany(obj) {
       const db = await getAdapter();
@@ -26,14 +27,17 @@ export function makeKv(scope) {
           db.run(`INSERT INTO kv(scope, key, value) VALUES(?, ?, ?) ON CONFLICT(scope, key) DO UPDATE SET value = excluded.value`, [scope, k, stringifyJson(v)]);
         }
       });
+      await db.flush?.();
     },
     async remove(key) {
       const db = await getAdapter();
       db.run(`DELETE FROM kv WHERE scope = ? AND key = ?`, [scope, key]);
+      await db.flush?.();
     },
     async clear() {
       const db = await getAdapter();
       db.run(`DELETE FROM kv WHERE scope = ?`, [scope]);
+      await db.flush?.();
     },
   };
 }

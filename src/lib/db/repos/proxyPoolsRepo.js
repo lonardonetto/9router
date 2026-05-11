@@ -74,6 +74,7 @@ export async function createProxyPool(data) {
     updatedAt: now,
   };
   upsert(db, pool);
+  await db.flush?.();
   return pool;
 }
 
@@ -87,6 +88,7 @@ export async function updateProxyPool(id, data) {
     upsert(db, merged);
     result = merged;
   });
+  await db.flush?.();
   return result;
 }
 
@@ -99,5 +101,6 @@ export async function deleteProxyPool(id) {
     removed = rowToPool(row);
     db.run(`DELETE FROM proxyPools WHERE id = ?`, [id]);
   });
+  await db.flush?.();
   return removed;
 }

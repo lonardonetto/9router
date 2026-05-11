@@ -41,6 +41,7 @@ export async function addCustomModel({ providerAlias, id, type = "llm", name }) 
     db.run(`INSERT INTO kv(scope, key, value) VALUES('customModels', ?, ?)`, [k, value]);
     added = true;
   });
+  await db.flush?.();
   return added;
 }
 

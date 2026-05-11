@@ -75,6 +75,7 @@ export async function updateSettings(updates) {
       [stringifyJson(next)]
     );
   });
+  await db.flush?.();
   return mergeWithDefaults(next);
 }
 
