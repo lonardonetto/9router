@@ -106,6 +106,30 @@ export const CLI_TOOLS = {
     description: "OpenAI Codex CLI",
     configType: "custom",
   },
+  providerEndpoint: {
+    id: "providerEndpoint",
+    name: "9Router Provider Endpoint",
+    icon: "hub",
+    color: "#D97757",
+    description: "Use 9Router as an OpenAI-compatible provider in any IDE or app",
+    configType: "guide",
+    guideSteps: [
+      { step: 1, title: "Provider type", desc: "Choose OpenAI-compatible, Custom OpenAI, or OpenAI API in the target app." },
+      { step: 2, title: "Base URL", value: "{{baseUrl}}", copyable: true },
+      { step: 3, title: "API Key", type: "apiKeySelector" },
+      { step: 4, title: "Model", type: "modelSelector" },
+      { step: 5, title: "Use model name as route", desc: "The model name selects which 9Router provider or combo will answer the request." },
+    ],
+    codeBlock: {
+      language: "json",
+      code: `{
+  "provider": "openai-compatible",
+  "baseUrl": "{{baseUrl}}",
+  "apiKey": "{{apiKey}}",
+  "model": "{{model}}"
+}`,
+    },
+  },
   opencode: {
     id: "opencode",
     name: "OpenCode",
