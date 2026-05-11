@@ -23,6 +23,7 @@ export default function CLIToolsPageClient({ machineId }) {
   const [tailscaleUrl, setTailscaleUrl] = useState("");
   const [apiKeys, setApiKeys] = useState([]);
   const [toolStatuses, setToolStatuses] = useState({});
+  const [cliToolConfigs, setCliToolConfigs] = useState({});
 
   useEffect(() => {
     fetchConnections();
@@ -49,6 +50,7 @@ export default function CLIToolsPageClient({ machineId }) {
       if (settingsRes.ok) {
         const data = await settingsRes.json();
         setCloudEnabled(data.cloudEnabled || false);
+        setCliToolConfigs(data.cliToolConfigs || {});
       }
       if (tunnelRes.ok) {
         const data = await tunnelRes.json();
@@ -115,6 +117,28 @@ export default function CLIToolsPageClient({ machineId }) {
     });
   }, []);
 
+  const saveCliToolConfig = useCallback(async (toolId, config) => {
+    const nextConfigs = {
+      ...cliToolConfigs,
+      [toolId]: {
+        ...(cliToolConfigs[toolId] || {}),
+        ...config,
+        updatedAt: new Date().toISOString(),
+      },
+    };
+    setCliToolConfigs(nextConfigs);
+
+    const res = await fetch("/api/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cliToolConfigs: nextConfigs }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to save CLI tool configuration");
+    setCliToolConfigs(data.cliToolConfigs || nextConfigs);
+    return data.cliToolConfigs?.[toolId] || nextConfigs[toolId];
+  }, [cliToolConfigs]);
+
   const getBaseUrl = () => {
     if (tunnelEnabled && tunnelPublicUrl) return tunnelPublicUrl;
     if (cloudEnabled && CLOUD_URL) return CLOUD_URL;
@@ -160,10 +184,22 @@ export default function CLIToolsPageClient({ machineId }) {
             hasActiveProviders={hasActiveProviders}
             cloudEnabled={cloudEnabled}
             initialStatus={toolStatuses.claude}
+            savedConfig={cliToolConfigs.claude || {}}
+            onSaveConfig={(config) => saveCliToolConfig("claude", config)}
           />
         );
       case "codex":
-        return <CodexToolCard key={toolId} {...commonProps} activeProviders={getActiveProviders()} cloudEnabled={cloudEnabled} initialStatus={toolStatuses.codex} />;
+        return (
+          <CodexToolCard
+            key={toolId}
+            {...commonProps}
+            activeProviders={getActiveProviders()}
+            cloudEnabled={cloudEnabled}
+            initialStatus={toolStatuses.codex}
+            savedConfig={cliToolConfigs.codex || {}}
+            onSaveConfig={(config) => saveCliToolConfig("codex", config)}
+          />
+        );
       case "opencode":
         return <OpenCodeToolCard key={toolId} {...commonProps} activeProviders={getActiveProviders()} cloudEnabled={cloudEnabled} initialStatus={toolStatuses.opencode} />;
       case "cowork":

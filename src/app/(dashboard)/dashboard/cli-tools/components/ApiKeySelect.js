@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const CUSTOM_VALUE = "__custom__";
 
@@ -12,6 +12,21 @@ export default function ApiKeySelect({ value, onChange, apiKeys = [], cloudEnabl
     return CUSTOM_VALUE;
   });
   const [customInput, setCustomInput] = useState(isCustom ? value : "");
+
+  useEffect(() => {
+    if (!value) {
+      setMode(apiKeys.length > 0 ? apiKeys[0].key : CUSTOM_VALUE);
+      setCustomInput("");
+      return;
+    }
+    if (apiKeys.some((k) => k.key === value)) {
+      setMode(value);
+      setCustomInput("");
+      return;
+    }
+    setMode(CUSTOM_VALUE);
+    setCustomInput(value);
+  }, [apiKeys, value]);
 
   const handleSelect = (e) => {
     const next = e.target.value;

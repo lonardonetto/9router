@@ -42,10 +42,13 @@ export default function ClaudeToolCard({
   tunnelPublicUrl,
   tailscaleEnabled,
   tailscaleUrl,
+  savedConfig = {},
+  onSaveConfig,
 }) {
   const [claudeStatus, setClaudeStatus] = useState(initialStatus || null);
   const [checkingClaude, setCheckingClaude] = useState(false);
   const [applying, setApplying] = useState(false);
+  const [savingConfig, setSavingConfig] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [message, setMessage] = useState(null);
   const [showInstallGuide, setShowInstallGuide] = useState(false);
@@ -82,6 +85,16 @@ export default function ClaudeToolCard({
       setSelectedApiKey(apiKeys[0].key);
     }
   }, [apiKeys, selectedApiKey]);
+
+  useEffect(() => {
+    if (savedConfig.baseUrl) setCustomBaseUrl(savedConfig.baseUrl);
+    if (savedConfig.apiKey) setSelectedApiKey(savedConfig.apiKey);
+    if (savedConfig.models && typeof savedConfig.models === "object") {
+      Object.entries(savedConfig.models).forEach(([alias, model]) => {
+        if (model) onModelMappingChange(alias, model);
+      });
+    }
+  }, [savedConfig, onModelMappingChange]);
 
   useEffect(() => {
     if (initialStatus) setClaudeStatus(initialStatus);
@@ -236,6 +249,40 @@ export default function ClaudeToolCard({
     if (currentEditingAlias) onModelMappingChange(currentEditingAlias, model.value);
   };
 
+  const getEffectiveApiKey = () => {
+    if (selectedApiKey?.trim()) return selectedApiKey.trim();
+    if (!cloudEnabled) return "sk_9router";
+    return "";
+  };
+
+  const getCurrentConfig = () => {
+    const models = {};
+    tool.defaultModels.forEach((model) => {
+      models[model.alias] = getEffectiveClaudeModel(model.alias);
+    });
+    return {
+      baseUrl: getEffectiveBaseUrl(),
+      apiKey: getEffectiveApiKey(),
+      model: getEffectiveClaudeModel("sonnet"),
+      models,
+      ccFilterNaming,
+    };
+  };
+
+  const handleSaveSelection = async () => {
+    if (!onSaveConfig) return;
+    setSavingConfig(true);
+    setMessage(null);
+    try {
+      await onSaveConfig(getCurrentConfig());
+      setMessage({ type: "success", text: "Selection saved successfully!" });
+    } catch (error) {
+      setMessage({ type: "error", text: error.message || "Failed to save selection" });
+    } finally {
+      setSavingConfig(false);
+    }
+  };
+
   // Generate settings.json content for manual copy
   const getManualConfigs = () => {
     const keyToUse = (selectedApiKey && selectedApiKey.trim())
@@ -328,6 +375,10 @@ export default function ClaudeToolCard({
                   ))}
                 </div>
                 <div className="flex items-center gap-2 pl-9">
+                  <Button variant="primary" size="sm" onClick={handleSaveSelection} loading={savingConfig}>
+                    <span className="material-symbols-outlined text-[18px] mr-1">save</span>
+                    Save Selection
+                  </Button>
                   <Button variant="secondary" size="sm" onClick={() => setShowManualConfigModal(true)} className="!bg-yellow-500/20 !border-yellow-500/40 !text-yellow-700 dark:!text-yellow-300 hover:!bg-yellow-500/30">
                     <span className="material-symbols-outlined text-[18px] mr-1">content_copy</span>
                     Manual Config
@@ -348,6 +399,12 @@ export default function ClaudeToolCard({
                     </div>
                     <p className="text-text-muted">After installation, run <code className="px-1 bg-black/5 dark:bg-white/5 rounded">claude</code> to verify.</p>
                   </div>
+                </div>
+              )}
+              {message && (
+                <div className={`flex items-center gap-2 px-2 py-1.5 rounded text-xs ${message.type === "success" ? "bg-green-500/10 text-green-600" : "bg-red-500/10 text-red-600"}`}>
+                  <span className="material-symbols-outlined text-[14px]">{message.type === "success" ? "check_circle" : "error"}</span>
+                  <span>{message.text}</span>
                 </div>
               )}
             </div>
@@ -432,6 +489,9 @@ export default function ClaudeToolCard({
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setShowManualConfigModal(true)}>
                   <span className="material-symbols-outlined text-[14px] mr-1">content_copy</span>Manual Config
+                </Button>
+                <Button variant="ghost" size="sm" onClick={handleSaveSelection} loading={savingConfig}>
+                  <span className="material-symbols-outlined text-[14px] mr-1">bookmark</span>Save Selection
                 </Button>
               </div>
             </>

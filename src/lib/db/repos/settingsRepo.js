@@ -30,6 +30,7 @@ const DEFAULT_SETTINGS = {
   rtkEnabled: true,
   cavemanEnabled: false,
   cavemanLevel: "full",
+  cliToolConfigs: {},
 };
 
 async function readRaw() {

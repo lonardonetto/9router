@@ -16,10 +16,11 @@ const CODEX_MODEL_FALLBACKS = [
   "cx/gpt-5-codex",
 ];
 
-export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, apiKeys, activeProviders, cloudEnabled, initialStatus, tunnelEnabled, tunnelPublicUrl, tailscaleEnabled, tailscaleUrl }) {
+export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, apiKeys, activeProviders, cloudEnabled, initialStatus, tunnelEnabled, tunnelPublicUrl, tailscaleEnabled, tailscaleUrl, savedConfig = {}, onSaveConfig }) {
   const [codexStatus, setCodexStatus] = useState(initialStatus || null);
   const [checkingCodex, setCheckingCodex] = useState(false);
   const [applying, setApplying] = useState(false);
+  const [savingConfig, setSavingConfig] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [message, setMessage] = useState(null);
   const [showInstallGuide, setShowInstallGuide] = useState(false);
@@ -49,6 +50,13 @@ export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, api
     if (defaultModel && !selectedModel) setSelectedModel(defaultModel);
     if (defaultModel && !subagentModel) setSubagentModel(defaultModel);
   }, [activeProviders, selectedModel, subagentModel]);
+
+  useEffect(() => {
+    if (savedConfig.baseUrl) setCustomBaseUrl(savedConfig.baseUrl);
+    if (savedConfig.apiKey) setSelectedApiKey(savedConfig.apiKey);
+    if (savedConfig.model) setSelectedModel(savedConfig.model);
+    if (savedConfig.subagentModel) setSubagentModel(savedConfig.subagentModel);
+  }, [savedConfig]);
 
   useEffect(() => {
     if (initialStatus) setCodexStatus(initialStatus);
@@ -178,13 +186,42 @@ export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, api
     setModalOpen(false);
   };
 
+  const getEffectiveApiKey = () => {
+    if (selectedApiKey?.trim()) return selectedApiKey.trim();
+    if (!cloudEnabled) return "sk_9router";
+    return "";
+  };
+
+  const getCurrentConfig = () => {
+    const effectiveModel = selectedModel || getDefaultCodexModel() || "cx/gpt-5.3-codex";
+    return {
+      baseUrl: getEffectiveBaseUrl(),
+      apiKey: getEffectiveApiKey(),
+      model: effectiveModel,
+      subagentModel: subagentModel || effectiveModel,
+    };
+  };
+
+  const handleSaveSelection = async () => {
+    if (!onSaveConfig) return;
+    setSavingConfig(true);
+    setMessage(null);
+    try {
+      await onSaveConfig(getCurrentConfig());
+      setMessage({ type: "success", text: "Selection saved successfully!" });
+    } catch (error) {
+      setMessage({ type: "error", text: error.message || "Failed to save selection" });
+    } finally {
+      setSavingConfig(false);
+    }
+  };
+
   const getManualConfigs = () => {
     const keyToUse = (selectedApiKey && selectedApiKey.trim())
       ? selectedApiKey
       : (!cloudEnabled ? "sk_9router" : "<API_KEY_FROM_DASHBOARD>");
 
-    const effectiveModel = selectedModel || getDefaultCodexModel() || "cx/gpt-5.3-codex";
-    const effectiveSubagentModel = subagentModel || effectiveModel;
+    const { model: effectiveModel, subagentModel: effectiveSubagentModel } = getCurrentConfig();
 
     const configContent = `# 9Router Configuration for Codex CLI
 model = "${effectiveModel}"
@@ -282,6 +319,10 @@ model = "${effectiveSubagentModel}"
                   </div>
                 </div>
                 <div className="flex items-center gap-2 pl-9">
+                  <Button variant="primary" size="sm" onClick={handleSaveSelection} loading={savingConfig}>
+                    <span className="material-symbols-outlined text-[18px] mr-1">save</span>
+                    Save Selection
+                  </Button>
                   <Button variant="secondary" size="sm" onClick={() => setShowManualConfigModal(true)} className="!bg-yellow-500/20 !border-yellow-500/40 !text-yellow-700 dark:!text-yellow-300 hover:!bg-yellow-500/30">
                     <span className="material-symbols-outlined text-[18px] mr-1">content_copy</span>
                     Manual Config
@@ -308,6 +349,12 @@ model = "${effectiveSubagentModel}"
                       </p>
                     </div>
                   </div>
+                </div>
+              )}
+              {message && (
+                <div className={`flex items-center gap-2 px-2 py-1.5 rounded text-xs ${message.type === "success" ? "bg-green-500/10 text-green-600" : "bg-red-500/10 text-red-600"}`}>
+                  <span className="material-symbols-outlined text-[14px]">{message.type === "success" ? "check_circle" : "error"}</span>
+                  <span>{message.text}</span>
                 </div>
               )}
             </div>
@@ -412,6 +459,9 @@ model = "${effectiveSubagentModel}"
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setShowManualConfigModal(true)}>
                   <span className="material-symbols-outlined text-[14px] mr-1">content_copy</span>Manual Config
+                </Button>
+                <Button variant="ghost" size="sm" onClick={handleSaveSelection} loading={savingConfig}>
+                  <span className="material-symbols-outlined text-[14px] mr-1">bookmark</span>Save Selection
                 </Button>
               </div>
             </>
