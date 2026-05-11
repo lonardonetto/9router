@@ -216,6 +216,8 @@ export default function CLIToolsPageClient({ machineId }) {
             tailscaleEnabled={tailscaleEnabled}
             tailscaleUrl={tailscaleUrl}
             initialStatus={toolStatuses.cowork}
+            savedConfig={cliToolConfigs.cowork || {}}
+            onSaveConfig={(config) => saveCliToolConfig("cowork", config)}
           />
         );
       case "droid":

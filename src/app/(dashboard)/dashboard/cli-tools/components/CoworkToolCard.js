@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card, Button, ManualConfigModal, ComboFormModal, McpMarketplaceModal } from "@/shared/components";
+import { Card, Button, ManualConfigModal, ComboFormModal, McpMarketplaceModal, ModelSelectModal } from "@/shared/components";
 import Image from "next/image";
 import BaseUrlSelect from "./BaseUrlSelect";
 import ApiKeySelect from "./ApiKeySelect";
@@ -30,10 +30,13 @@ export default function CoworkToolCard({
   tailscaleEnabled,
   tailscaleUrl,
   initialStatus,
+  savedConfig = {},
+  onSaveConfig,
 }) {
   const [status, setStatus] = useState(initialStatus || null);
   const [checking, setChecking] = useState(false);
   const [applying, setApplying] = useState(false);
+  const [savingConfig, setSavingConfig] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [message, setMessage] = useState(null);
   const [selectedApiKey, setSelectedApiKey] = useState("");
@@ -42,7 +45,9 @@ export default function CoworkToolCard({
   const [customBaseUrl, setCustomBaseUrl] = useState("");
   const [plugins, setPlugins] = useState([]);
   const [comboModalOpen, setComboModalOpen] = useState(false);
+  const [modelModalOpen, setModelModalOpen] = useState(false);
   const [marketplaceOpen, setMarketplaceOpen] = useState(false);
+  const [modelAliases, setModelAliases] = useState({});
 
   useEffect(() => {
     if (apiKeys?.length > 0 && !selectedApiKey) {
@@ -56,6 +61,7 @@ export default function CoworkToolCard({
 
   useEffect(() => {
     if (isExpanded && !status) checkStatus();
+    if (isExpanded) fetchModelAliases();
   }, [isExpanded]);
 
   useEffect(() => {
@@ -73,6 +79,13 @@ export default function CoworkToolCard({
     }
   }, [status]);
 
+  useEffect(() => {
+    if (savedConfig.baseUrl) setCustomBaseUrl(stripV1(savedConfig.baseUrl));
+    if (savedConfig.apiKey) setSelectedApiKey(savedConfig.apiKey);
+    if (Array.isArray(savedConfig.models)) setSelectedModels(savedConfig.models);
+    if (Array.isArray(savedConfig.plugins) && savedConfig.plugins.length > 0) setPlugins(savedConfig.plugins);
+  }, [savedConfig]);
+
   const checkStatus = async () => {
     setChecking(true);
     try {
@@ -86,9 +99,36 @@ export default function CoworkToolCard({
     }
   };
 
-  const getEffectiveBaseUrl = () => ensureV1(customBaseUrl);
+  const fetchModelAliases = async () => {
+    try {
+      const res = await fetch("/api/models/alias");
+      const data = await res.json();
+      if (res.ok) setModelAliases(data.aliases || {});
+    } catch (error) {
+      console.log("Error fetching model aliases:", error);
+    }
+  };
+
+  const getEffectiveBaseUrl = () => ensureV1(customBaseUrl || baseUrl);
+
+  const getEffectiveApiKey = () => {
+    if (selectedApiKey?.trim()) return selectedApiKey.trim();
+    if (apiKeys?.length > 0) return apiKeys[0].key;
+    if (!cloudEnabled) return "sk_9router";
+    return "";
+  };
+
+  const getCurrentConfig = () => ({
+    baseUrl: getEffectiveBaseUrl(),
+    apiKey: getEffectiveApiKey(),
+    models: selectedModels,
+    plugins,
+  });
+
+  const hasSavedRoutingConfig = () => Boolean(savedConfig.baseUrl && savedConfig.models?.length);
 
   const getConfigStatus = () => {
+    if (hasSavedRoutingConfig()) return "configured";
     if (!status?.installed) return null;
     const url = status?.cowork?.baseUrl;
     if (!url) return "not_configured";
@@ -96,6 +136,24 @@ export default function CoworkToolCard({
   };
 
   const configStatus = getConfigStatus();
+
+  const handleSaveSelection = async () => {
+    if (!onSaveConfig) return;
+    if (selectedModels.length === 0) {
+      setMessage({ type: "error", text: "Please select at least one model" });
+      return;
+    }
+    setSavingConfig(true);
+    setMessage(null);
+    try {
+      await onSaveConfig(getCurrentConfig());
+      setMessage({ type: "success", text: "Selection saved successfully!" });
+    } catch (error) {
+      setMessage({ type: "error", text: error.message || "Failed to save selection" });
+    } finally {
+      setSavingConfig(false);
+    }
+  };
 
   const handleApply = async () => {
     setMessage(null);
@@ -108,9 +166,7 @@ export default function CoworkToolCard({
 
     setApplying(true);
     try {
-      const keyToUse = selectedApiKey?.trim()
-        || (apiKeys?.length > 0 ? apiKeys[0].key : null)
-        || (!cloudEnabled ? "sk_9router" : null);
+      const keyToUse = getEffectiveApiKey();
 
       const res = await fetch(ENDPOINT, {
         method: "POST",
@@ -125,6 +181,7 @@ export default function CoworkToolCard({
       const data = await res.json();
       if (res.ok) {
         setMessage({ type: "success", text: "Settings applied. Quit & reopen Claude Desktop to load." });
+        await onSaveConfig?.(getCurrentConfig());
         checkStatus();
       } else {
         setMessage({ type: "error", text: data.error || "Failed to apply settings" });
@@ -155,6 +212,12 @@ export default function CoworkToolCard({
       setMessage({ type: "success", text: `Combo "${name}" created and added.` });
     } catch (error) {
       setMessage({ type: "error", text: error.message });
+    }
+  };
+
+  const handleModelSelect = (model) => {
+    if (!selectedModels.includes(model.value)) {
+      setSelectedModels([...selectedModels, model.value]);
     }
   };
 
@@ -189,9 +252,7 @@ export default function CoworkToolCard({
   };
 
   const getManualConfigs = () => {
-    const keyToUse = (selectedApiKey && selectedApiKey.trim())
-      ? selectedApiKey
-      : (!cloudEnabled ? "sk_9router" : "<API_KEY_FROM_DASHBOARD>");
+    const keyToUse = getEffectiveApiKey() || "<API_KEY_FROM_DASHBOARD>";
 
     const modelsToShow = selectedModels.length > 0 ? selectedModels : ["provider/model-id"];
     const cfg = {
@@ -246,11 +307,65 @@ export default function CoworkToolCard({
                 </div>
               </div>
               <div className="pl-9">
-                <Button variant="secondary" size="sm" onClick={() => setShowManualConfigModal(true)} className="!bg-yellow-500/20 !border-yellow-500/40 !text-yellow-700 dark:!text-yellow-300 hover:!bg-yellow-500/30">
-                  <span className="material-symbols-outlined text-[18px] mr-1">content_copy</span>
-                  Manual Config
-                </Button>
+                <div className="grid grid-cols-1 gap-2 pb-3">
+                  <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[7rem_1fr] sm:items-center">
+                    <span className="text-xs font-semibold text-text-main">Endpoint</span>
+                    <BaseUrlSelect
+                      value={getEffectiveBaseUrl()}
+                      onChange={(url) => setCustomBaseUrl(stripV1(url))}
+                      tunnelEnabled={tunnelEnabled}
+                      tunnelPublicUrl={tunnelPublicUrl}
+                      tailscaleEnabled={tailscaleEnabled}
+                      tailscaleUrl={tailscaleUrl}
+                      cloudEnabled={cloudEnabled}
+                      cloudUrl={cloudUrl}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[7rem_1fr] sm:items-center">
+                    <span className="text-xs font-semibold text-text-main">API Key</span>
+                    <ApiKeySelect value={selectedApiKey} onChange={setSelectedApiKey} apiKeys={apiKeys} cloudEnabled={cloudEnabled} />
+                  </div>
+                  <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-[7rem_1fr] sm:items-start">
+                    <span className="text-xs font-semibold text-text-main sm:pt-2">Models</span>
+                    <div className="flex min-w-0 flex-col gap-2">
+                      <div className="flex min-h-[36px] flex-wrap gap-1.5 rounded border border-border bg-surface px-2 py-1.5">
+                        {selectedModels.length === 0 ? (
+                          <span className="text-xs text-text-muted">Select a provider/model to route Cowork through 9Router</span>
+                        ) : (
+                          selectedModels.map((m) => (
+                            <span key={m} className="inline-flex items-center gap-1 rounded border border-transparent bg-black/5 px-2 py-0.5 text-xs text-text-muted hover:border-border dark:bg-white/5">
+                              {m}
+                              <button onClick={() => setSelectedModels((prev) => prev.filter((x) => x !== m))} className="ml-0.5 hover:text-red-500">
+                                <span className="material-symbols-outlined text-[12px]">close</span>
+                              </button>
+                            </span>
+                          ))
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button onClick={() => setModelModalOpen(true)} disabled={!hasActiveProviders} className={`rounded border px-2 py-1 text-xs transition-colors ${hasActiveProviders ? "bg-primary/10 border-primary/40 text-primary hover:bg-primary/20 cursor-pointer" : "opacity-50 cursor-not-allowed border-border"}`}>+ Add Model</button>
+                        <button onClick={() => setComboModalOpen(true)} disabled={!hasActiveProviders} className={`rounded border px-2 py-1 text-xs transition-colors ${hasActiveProviders ? "bg-surface border-border text-text-main hover:border-primary cursor-pointer" : "opacity-50 cursor-not-allowed border-border"}`}>+ Add Combo</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button variant="primary" size="sm" onClick={handleSaveSelection} disabled={selectedModels.length === 0} loading={savingConfig}>
+                    <span className="material-symbols-outlined text-[18px] mr-1">save</span>
+                    Save Selection
+                  </Button>
+                  <Button variant="secondary" size="sm" onClick={() => setShowManualConfigModal(true)} className="!bg-yellow-500/20 !border-yellow-500/40 !text-yellow-700 dark:!text-yellow-300 hover:!bg-yellow-500/30">
+                    <span className="material-symbols-outlined text-[18px] mr-1">content_copy</span>
+                    Manual Config
+                  </Button>
+                </div>
               </div>
+              {message && (
+                <div className={`flex items-center gap-2 px-2 py-1.5 rounded text-xs ${message.type === "success" ? "bg-green-500/10 text-green-600" : "bg-red-500/10 text-red-600"}`}>
+                  <span className="material-symbols-outlined text-[14px]">{message.type === "success" ? "check_circle" : "error"}</span>
+                  <span>{message.text}</span>
+                </div>
+              )}
             </div>
           )}
 
@@ -306,7 +421,10 @@ export default function CoworkToolCard({
                         ))
                       )}
                     </div>
-                    <button onClick={() => setComboModalOpen(true)} disabled={!hasActiveProviders} className={`self-start px-2 py-1 rounded border text-xs transition-colors ${hasActiveProviders ? "bg-primary/10 border-primary/40 text-primary hover:bg-primary/20 cursor-pointer" : "opacity-50 cursor-not-allowed border-border"}`}>+ Add Combo (claude-)</button>
+                    <div className="flex flex-wrap gap-2">
+                      <button onClick={() => setModelModalOpen(true)} disabled={!hasActiveProviders} className={`self-start px-2 py-1 rounded border text-xs transition-colors ${hasActiveProviders ? "bg-primary/10 border-primary/40 text-primary hover:bg-primary/20 cursor-pointer" : "opacity-50 cursor-not-allowed border-border"}`}>+ Add Model</button>
+                      <button onClick={() => setComboModalOpen(true)} disabled={!hasActiveProviders} className={`self-start px-2 py-1 rounded border text-xs transition-colors ${hasActiveProviders ? "bg-surface border-border text-text-main hover:border-primary cursor-pointer" : "opacity-50 cursor-not-allowed border-border"}`}>+ Add Combo (claude-)</button>
+                    </div>
                   </div>
                 </div>
 
@@ -356,6 +474,9 @@ export default function CoworkToolCard({
                 <Button variant="ghost" size="sm" onClick={() => setShowManualConfigModal(true)} className="w-full sm:w-auto">
                   <span className="material-symbols-outlined text-[14px] mr-1">content_copy</span>Manual Config
                 </Button>
+                <Button variant="ghost" size="sm" onClick={handleSaveSelection} disabled={selectedModels.length === 0} loading={savingConfig} className="w-full sm:w-auto">
+                  <span className="material-symbols-outlined text-[14px] mr-1">bookmark</span>Save Selection
+                </Button>
               </div>
             </>
           )}
@@ -377,6 +498,17 @@ export default function CoworkToolCard({
         activeProviders={activeProviders}
         forcePrefix="claude-"
         title="Create Cowork Combo"
+      />
+
+      <ModelSelectModal
+        isOpen={modelModalOpen}
+        onClose={() => setModelModalOpen(false)}
+        onSelect={handleModelSelect}
+        selectedModel={null}
+        activeProviders={activeProviders}
+        modelAliases={modelAliases}
+        addedModelValues={selectedModels}
+        title="Add Model to Cowork"
       />
 
       <McpMarketplaceModal
