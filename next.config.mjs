@@ -1,6 +1,12 @@
+import path from "node:path";
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
+  outputFileTracingRoot: path.resolve(),
+  outputFileTracingIncludes: {
+    "/*": ["./node_modules/sql.js/dist/sql-wasm.wasm"],
+  },
   serverExternalPackages: ["better-sqlite3", "sql.js", "node:sqlite", "bun:sqlite"],
   images: {
     unoptimized: true
