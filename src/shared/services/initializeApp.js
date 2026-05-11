@@ -49,6 +49,13 @@ const g = global.__appSingleton ??= {
 export async function initializeApp() {
   try {
     await cleanupProviderConnections();
+
+    // Vercel serverless: skip MITM, tunnels, watchdogs — they require a persistent process
+    if (process.env.VERCEL) {
+      console.log("[InitApp] Running on Vercel — skipping MITM/tunnel/watchdog");
+      return;
+    }
+
     const settings = await getSettings();
 
     // Auto-resume tunnel (once per process)

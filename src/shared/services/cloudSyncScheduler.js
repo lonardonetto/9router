@@ -4,6 +4,7 @@ import { isCloudEnabled } from "@/lib/localDb";
 const INTERNAL_BASE_URL =
   process.env.BASE_URL ||
   process.env.NEXT_PUBLIC_BASE_URL ||
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
   "http://localhost:20128";
 
 /**
