@@ -92,7 +92,10 @@ export default function CodexToolCard({ tool, isExpanded, onToggle, baseUrl, api
     }
   }, [codexStatus]);
 
+  const hasSavedRoutingConfig = () => Boolean(savedConfig.baseUrl && (savedConfig.model || savedConfig.subagentModel));
+
   const getConfigStatus = () => {
+    if (hasSavedRoutingConfig()) return "configured";
     if (!codexStatus?.installed) return null;
     if (!codexStatus.config) return "not_configured";
     const parsed = codexStatus.config.match(/base_url\s*=\s*"([^"]+)"/);

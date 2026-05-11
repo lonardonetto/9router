@@ -61,7 +61,15 @@ export default function ClaudeToolCard({
   const [ccFilterNaming, setCcFilterNaming] = useState(false);
   const hasInitializedModels = useRef(false);
 
+  const hasSavedRoutingConfig = () => {
+    const hasSavedModelMap = savedConfig.models && typeof savedConfig.models === "object"
+      ? Object.values(savedConfig.models).some(Boolean)
+      : false;
+    return Boolean(savedConfig.baseUrl && (savedConfig.model || hasSavedModelMap));
+  };
+
   const getConfigStatus = () => {
+    if (hasSavedRoutingConfig()) return "configured";
     if (!claudeStatus?.installed) return null;
     const currentUrl = claudeStatus.settings?.env?.ANTHROPIC_BASE_URL;
     if (!currentUrl) return "not_configured";
